@@ -294,16 +294,31 @@ object CrossRoadPrice {
 
 //      df.registerTempTable("tmp")
 
-      df.registerTempTable("tmp")
+      df.registerTempTable("query_from_hive")
 
-//      df.createOrReplaceTempView("tmp")
+//      val sqlText1 = "select roadIdOne, roadIdTwo as crossroad, hour(from_unixtime(dataTime,'yyyy-MM-dd HH:mm:ss')) as hours, " +
+//        "avg(timeDiff) as avgTime from query_from_hive group by roadIdOne, roadIdTwo, hour(from_unixtime(dataTime,'yyyy-MM-dd HH:mm:ss'))"
+//
+//      val frame: DataFrame = sqlContext.sql(sqlText1)
+//
+//      val rdd = frame.rdd
 
-      val sqlText1 = "select roadIdOne, roadIdTwo as crossroad, hour(from_unixtime(dataTime,'yyyy-MM-dd HH:mm:ss')) as hours, " +
-        "avg(timeDiff) as avgTime from tmp group by roadIdOne, roadIdTwo, hour(from_unixtime(dataTime,'yyyy-MM-dd HH:mm:ss'))"
+      /**
+        * 从hbase查询历史数据进行和并
+        */
+      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
 
-      val frame: DataFrame = sqlContext.sql(sqlText1)
+      val fromPhoenix: DataFrame = queryDF.select("*")
 
-      val rdd = df.rdd
+      fromPhoenix.registerTempTable("from_phoenix")
+
+//      val queryFromPhoenix = sqlContext.sql("select ROADIDONE, ROADIDTWO, DAYHOUR, TIME from from_phoenix")
+      val queryFromPhoenix = sqlContext.sql("select from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR, if(avg(query_from_hive.timeDiff) is null, min(from_phoenix.TIME), (min(from_phoenix.TIME) + avg(query_from_hive.timeDiff))/2) as hour from from_phoenix left join query_from_hive on from_phoenix.ROADIDONE=query_from_hive.roadIdOne and from_phoenix.ROADIDTWO=query_from_hive.roadIdTwo and from_phoenix.DAYHOUR=hour(from_unixtime(query_from_hive.dataTime,'yyyy-MM-dd HH:mm:ss')) group by from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR")
+
+      val rdd = queryFromPhoenix.rdd
+
+      queryFromPhoenix.show()
+
 
       val historySchema = StructType({
         List(StructField("ROADIDONE", IntegerType),

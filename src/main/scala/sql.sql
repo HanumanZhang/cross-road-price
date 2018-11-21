@@ -109,3 +109,7 @@ select case when size(split(regexp_replace(substring(get_json_object(get_json_ob
         s"${roadIdTwo}'" +
         "),'$.lonlat'))),'},','}-'),'-')[0],'$.speed') as Double)as roadIdTrackTwoSpeed1 from dw_tbtravel " +
         s"WHERE roadId LIKE '%${roadIdOne}%' AND roadId LIKE '%${roadIdTwo}%'
+
+
+--数据之间整合
+select from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR, (from_phoenix.TIME + query_from_hive.avg(timeDiff))/2 from from_phoenixleft join query_from_hive on from_phoenix.ROADIDONE=query_from_hive.roadIdOne and from_phoenix.ROADIDTWO=query_from_hive.roadIdTwo and from_phoenix.DAYHOUR=query_from_hive.hour(from_unixtime(dataTime,'yyyy-MM-dd HH:mm:ss'))

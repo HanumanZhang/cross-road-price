@@ -251,9 +251,9 @@ object CrossRoadPrice {
         //计算道路二上采集点到道路二上五十米的距离
         val linkTwoDistanceTo50 = DistanceUtil.algorithm(tt._14, tt._15, tt._16, tt._17)
         //计算道路一上采集点到50米的时间
-        val linkOneDiffTime: Double = linkOneDistanceTo50 / tt._6
+        val linkOneDiffTime: Double = linkOneDistanceTo50 /((tt._6 *1000) / 3600)
         //计算道路二上采集点到50米的时间
-        val linkTwoDiffTime: Double = linkTwoDistanceTo50 / tt._16
+        val linkTwoDiffTime: Double = linkTwoDistanceTo50 / ((tt._16 *1000) / 3600)
         //返回道路ID、采集点时间、距离、时间差
         /**
           * 进入：

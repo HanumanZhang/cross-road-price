@@ -1,10 +1,13 @@
 --路口代价hbase存储表
 create table if not exists "CROSSROADPRICE"(
+"INTERSECTIONID" INTEGER NOT NULL,
 "ROADIDONE" INTEGER NOT NULL,
 "ROADIDTWO" INTEGER NOT NULL,
 "DAYHOUR" INTEGER NOT NULL,
 "ROADPRICE"."TIME" DOUBLE,
-constraint dos_pk primary key("ROADIDONE", "ROADIDTWO", "DAYHOUR"));
+constraint dos_pk primary key("INTERSECTIONID","ROADIDONE", "ROADIDTWO", "DAYHOUR"));
+
+DELETE FROM "MAPBARTRAVEL";
 
 --从hive根据出入路口的linkIdId查询数据
 select case when size(split(regexp_replace(substring(get_json_object(get_json_object(matgps,'$." +

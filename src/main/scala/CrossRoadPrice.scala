@@ -11,7 +11,7 @@ object CrossRoadPrice {
 
     val conf = new SparkConf()
     conf
-      .setMaster("local[*]")
+//      .setMaster("local[*]")
       .setAppName(this.getClass.getName)
 
     val sc = new SparkContext(conf)
@@ -26,12 +26,14 @@ object CrossRoadPrice {
     /**
       * roadId1 和 roadId2获取
       */
-    //通过读取文件获取道路起始结束点，进行广播变量？？
-    val linkData: RDD[String] = sc.textFile("hdfs://hadoopslave2:8020/crossingLocation/")
+    //通过读取文件获取道路起始结束点，进行广播变量
+    val linkData: RDD[String] = sc.textFile("hdfs://hadoopslave2:8020/crossroadlonlat/")
 
-    val roadIdLonLat: RDD[(Int, Double, Double, Int, Double, Double)] = linkData.map(link => {
+    val roadIdLonLat: RDD[(Int, Double, Double, Int, Double, Double, Int)] = linkData.map(link => {
       //数组里面装的是路口名称、有无红绿灯、linkID+lon+lat
       val roadLonLats: Array[String] = link.split("->")
+      //路口id
+      val intersectionId: Int = roadLonLats(0).toInt
       //linkId:lon,lat
       //34097606:123.0,60;124.0,61;125.30,62 34097604:123.0,60;124.0,61;125.30,62
       val roadOne: String = roadLonLats(2)
@@ -55,17 +57,18 @@ object CrossRoadPrice {
       val linkEndLonLats: Array[String] = linkStartLonLat(1).split(";")
       val linkEndLon: Double = linkEndLonLats(linkEndLonLats.length-1).split(",")(0).toDouble
       val linkEndLat: Double = linkEndLonLats(linkEndLonLats.length-1).split(",")(1).toDouble
-      (linkStartId, linkStartLon, linkStartLat, linkEndId, linkEndLon, linkEndLat)
+      //返回道路进入的linkid、经度、纬度，道路出去的linkId、经度、纬度，路口ID
+      (linkStartId, linkStartLon, linkStartLat, linkEndId, linkEndLon, linkEndLat,intersectionId)
     })
 
     //    roadIdLonLat.saveAsTextFile("hdfs://hadoopslave2:8020/roadIdStartEnd")
     /**
       * 将查到的路口数据进行广播
       */
-    val tuples: Array[(Int, Double, Double, Int, Double, Double)] = roadIdLonLat.collect()
-    val broadcastData: Broadcast[Array[(Int, Double, Double, Int, Double, Double)]] = sc.broadcast(tuples)
+    val tuples: Array[(Int, Double, Double, Int, Double, Double, Int)] = roadIdLonLat.collect()
+    val broadcastData: Broadcast[Array[(Int, Double, Double, Int, Double, Double, Int)]] = sc.broadcast(tuples)
 
-    val value: Array[(Int, Double, Double, Int, Double, Double)] = broadcastData.value
+    val value: Array[(Int, Double, Double, Int, Double, Double, Int)] = broadcastData.value
 
     for(va <- value){
       val roadIdOne: Int = va._1
@@ -74,6 +77,7 @@ object CrossRoadPrice {
       val roadIdTwo: Int = va._4
       val roadIdTwoLon: Double = va._5
       val roadIdTwoLat: Double = va._6
+      val intersectionId: Int = va._7
 
       val sqlText = "select case when size(split(regexp_replace(substring(get_json_object(get_json_object(matgps,'$." +
         s"${roadIdOne}'" +
@@ -175,13 +179,13 @@ object CrossRoadPrice {
         s"${roadIdTwo}'" +
         "),'$.lonlat'),2,length(get_json_object(get_json_object(matgps,'$." +
         s"${roadIdTwo}'" +
-        "),'$.lonlat'))),'},','}-'),'-')[0],'$.speed') as Double)as roadIdTrackTwoSpeed1 from dw_tbtravel " +
-        s"WHERE roadId LIKE '%${roadIdOne}%' AND roadId LIKE '%${roadIdTwo}%'"
+        "),'$.lonlat'))),'},','}-'),'-')[0],'$.speed') as Double)as roadIdTrackTwoSpeed1 from dw_tbcartravel " +
+        s"WHERE roadid LIKE '%${roadIdOne}%' AND roadid LIKE '%${roadIdTwo}%'"
 
       val dataRDD = hiveContext.sql(sqlText)
 
+      //进入的经度、纬度、dev时间、gps时间、速度、出去的经度、纬度、dev时间、gps时间、速度
       val df2Rdd: RDD[Row] = dataRDD.rdd
-
       val rowRDD: RDD[(Double, Double, Long, Long, Double, Double, Double, Long, Long, Double)] = df2Rdd.map(t => {
         val row = Row(t(0), t(1), t(2), t(3), t(4), t(5), t(6), t(7), t(8), t(9))
         val roadIdTrackOneLon1 = row.getDouble(0)
@@ -216,7 +220,7 @@ object CrossRoadPrice {
         /**
           * linkStartId, linkStartLon, linkStartLat, linkEndId, linkEndLon, linkEndLat
           */
-        //返回50米的距离地点经纬度
+        //返回50米的距离地点经纬度；传入的是进入的linkId、最后一个经纬度，出去的linkId、第一个经纬度
         val linkOne: List[(Int, Double, Double)] = CrossingRoadPrice.getLonLatByRoadId(roadIdOne, roadIdOneLon, roadIdOneLat, -50)
         val linkTwo: List[(Int, Double, Double)] = CrossingRoadPrice.getLonLatByRoadId(roadIdTwo, roadIdTwoLon, roadIdTwoLat, 50)
         val lonOneTo50: Double = linkOne.apply(0)._2
@@ -225,6 +229,11 @@ object CrossRoadPrice {
         val latTwoTo50: Double = linkTwo.apply(0)._3
 
         /**
+          * 返回：
+          *   进入的
+          *   linkId、最后一个点经度、最后一个点纬度、50m经度、50m纬度、采集经度、采集纬度、采集设备时间、采集GPS时间、采集速度
+          *   出去的
+          *   linkId、第一个点经度、第一个点纬度、50m经度、50m纬度、采集经度、采集纬度、采集设备时间、采集GPS时间、采集速度
           * linkStartId linkStartLon linkStartLat lonOneTo50 latOneTo50 roadIdTrackOneLon1  roadIdTrackOneLat1  roadIdTrackOneDEVtimestamp1  roadIdTrackOneGPStimestamp1 roadIdTrackOneSpeed1
           * linkEndId linkEndLon linkEndLat lonTwoTo50 latTwoTo50 roadIdTrackTwoLon1  roadIdTrackTwoLat1  roadIdTrackTwoDEVtimestamp1  roadIdTrackTwoGPStimestamp1  roadIdTrackTwoSpeed1
           */
@@ -247,9 +256,12 @@ object CrossRoadPrice {
         val linkTwoDiffTime: Double = linkTwoDistanceTo50 / tt._16
         //返回道路ID、采集点时间、距离、时间差
         /**
+          * 进入：
+          * linkId、设备时间、gps时间、路口到50米距离、时间差
+          * 出去：
+          * linkId、设备时间、gps时间、路口到50米距离、时间差
           *  linkStartId roadIdTrackOneDEVtimestamp1  roadIdTrackOneGPStimestamp1  linkOneDistanceToRoad linkOneDiffTime
           *  linkEndId roadIdTrackTwoDEVtimestamp1  roadIdTrackTwoGPStimestamp1  linkTwoDistanceToRoad linkTwoDiffTime
-          *
           */
         (tt._1, tt._8, tt._9, linkOneDistanceToRoad, linkOneDiffTime, tt._11, tt._18, tt._19, linkTwoDistanceToRoad, linkTwoDiffTime)
       })
@@ -281,11 +293,17 @@ object CrossRoadPrice {
         /**
           * linkStartId roadIdTrackOneGPStimestamp1 linkEndId 时间差
           */
+        val intersectionId: Int = va._7
         val roadIdOne: Int = rit._1
         val dataTime: Int = rit._3.asInstanceOf[Int]
         val roadIdTwo: Int = rit._6
         val timeDiff: Double = linkTwoTime - linkOneTime
-        RoadPriceBean(roadIdOne, roadIdTwo, dataTime, timeDiff)
+
+        /**
+          * 返回对象：
+          * 路口ID、进入道路ID、出去道路ID、时间(2018-12-05 12)、时间差
+          */
+        RoadPriceBean(intersectionId, roadIdOne, roadIdTwo, dataTime, timeDiff)
       })
 
       val df: DataFrame = datediff.toDF()
@@ -313,7 +331,7 @@ object CrossRoadPrice {
       fromPhoenix.registerTempTable("from_phoenix")
 
 //      val queryFromPhoenix = sqlContext.sql("select ROADIDONE, ROADIDTWO, DAYHOUR, TIME from from_phoenix")
-      val queryFromPhoenix = sqlContext.sql("select from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR, if(avg(query_from_hive.timeDiff) is null, min(from_phoenix.TIME), (min(from_phoenix.TIME) + avg(query_from_hive.timeDiff))/2) as hour from from_phoenix left join query_from_hive on from_phoenix.ROADIDONE=query_from_hive.roadIdOne and from_phoenix.ROADIDTWO=query_from_hive.roadIdTwo and from_phoenix.DAYHOUR=hour(from_unixtime(query_from_hive.dataTime,'yyyy-MM-dd HH:mm:ss')) group by from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR")
+      val queryFromPhoenix = sqlContext.sql("select from_phoenix.INTERSECTIONID, from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR, if(avg(query_from_hive.timeDiff) is null, min(from_phoenix.TIME), (min(from_phoenix.TIME) + avg(query_from_hive.timeDiff))/2) as hour from from_phoenix left join query_from_hive on from_phoenix.ROADIDONE=query_from_hive.roadIdOne and from_phoenix.ROADIDTWO=query_from_hive.roadIdTwo and from_phoenix.DAYHOUR=hour(from_unixtime(query_from_hive.dataTime,'yyyy-MM-dd HH:mm:ss')) group by from_phoenix.INTERSECTIONID,from_phoenix.ROADIDONE, from_phoenix.ROADIDTWO, from_phoenix.DAYHOUR")
 
       val rdd = queryFromPhoenix.rdd
 
@@ -321,7 +339,9 @@ object CrossRoadPrice {
 
 
       val historySchema = StructType({
-        List(StructField("ROADIDONE", IntegerType),
+        List(
+          StructField("INTERSECTIONID", IntegerType),
+          StructField("ROADIDONE", IntegerType),
           StructField("ROADIDTWO", IntegerType),
           StructField("DAYHOUR", IntegerType),
           StructField("TIME", DoubleType)
@@ -358,7 +378,7 @@ object CrossRoadPrice {
     }
   }
 }
-case class RoadPriceBean(var roadIdOne: Int, var roadIdTwo: Int, var dataTime: Int, val timeDiff: Double) extends Serializable
+case class RoadPriceBean(var intersectionId: Int, var roadIdOne: Int, var roadIdTwo: Int, var dataTime: Int, val timeDiff: Double) extends Serializable
 
 case class Lon[Row](
                      roadIdTrackOneLon1: Double,

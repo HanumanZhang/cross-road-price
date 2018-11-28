@@ -1,3 +1,4 @@
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
@@ -11,7 +12,7 @@ object CrossRoadPrice {
 
     val conf = new SparkConf()
     conf
-//      .setMaster("local[*]")
+      .setMaster("local[*]")
       .setAppName(this.getClass.getName)
 
     val sc = new SparkContext(conf)
@@ -27,7 +28,8 @@ object CrossRoadPrice {
       * roadId1 和 roadId2获取
       */
     //通过读取文件获取道路起始结束点，进行广播变量
-    val linkData: RDD[String] = sc.textFile("hdfs://hadoopslave2:8020/crossroadlonlat/")
+    val linkData: RDD[String] = sc.textFile("hdfs://hadoopslave2:8020/crossingLocation/")
+//    val linkData: RDD[String] = sc.textFile("hdfs://hadoopslave2:8020/crossroadlonlat/")
 
     val roadIdLonLat: RDD[(Int, Double, Double, Int, Double, Double, Int)] = linkData.map(link => {
       //数组里面装的是路口名称、有无红绿灯、linkID+lon+lat
@@ -179,7 +181,7 @@ object CrossRoadPrice {
         s"${roadIdTwo}'" +
         "),'$.lonlat'),2,length(get_json_object(get_json_object(matgps,'$." +
         s"${roadIdTwo}'" +
-        "),'$.lonlat'))),'},','}-'),'-')[0],'$.speed') as Double)as roadIdTrackTwoSpeed1 from dw_tbcartravel " +
+        "),'$.lonlat'))),'},','}-'),'-')[0],'$.speed') as Double)as roadIdTrackTwoSpeed1 from dw_tbtravel " +
         s"WHERE roadid LIKE '%${roadIdOne}%' AND roadid LIKE '%${roadIdTwo}%'"
 
       val dataRDD = hiveContext.sql(sqlText)
@@ -323,8 +325,25 @@ object CrossRoadPrice {
 
       /**
         * 从hbase查询历史数据进行和并
+        * INTERSECTIONID  | ROADIDONE  | ROADIDTWO  | DAYHOUR  | TIME
         */
-      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
+
+
+//      val queryDF = sqlContext
+//        .read
+//        .format("jdbc")
+//        .option("driver", "org.apache.phoenix.jdbc.PhoenixDriver")
+//        .option("url", "192.168.145.79:2181")
+//        .option("dbtable", "CROSSROADPRICE")
+//        .load()
+
+//      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
+      import org.apache.phoenix.spark._
+      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE",Array("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
+        Option(""),zkUrl = Option("192.168.145.79:2181"),new Configuration())
+
+//      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE", Seq("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
+//        Option(""), zkUrl = Option("192.168.145.79:2181"), new Configuration())
 
       val fromPhoenix: DataFrame = queryDF.select("*")
 

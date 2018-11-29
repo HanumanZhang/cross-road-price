@@ -12,7 +12,7 @@ object CrossRoadPrice {
 
     val conf = new SparkConf()
     conf
-      .setMaster("local[*]")
+//      .setMaster("local[*]")
       .setAppName(this.getClass.getName)
 
     val sc = new SparkContext(conf)
@@ -337,10 +337,10 @@ object CrossRoadPrice {
 //        .option("dbtable", "CROSSROADPRICE")
 //        .load()
 
-//      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
-      import org.apache.phoenix.spark._
-      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE",Array("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
-        Option(""),zkUrl = Option("192.168.145.79:2181"),new Configuration())
+      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
+//      import org.apache.phoenix.spark._
+//      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE",Array("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
+//        Option(""),zkUrl = Option("192.168.145.79:2181"),new Configuration())
 
 //      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE", Seq("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
 //        Option(""), zkUrl = Option("192.168.145.79:2181"), new Configuration())

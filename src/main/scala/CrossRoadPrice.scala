@@ -1,9 +1,11 @@
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.types._
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.phoenix.spark._
 
 object CrossRoadPrice {
   def main(args: Array[String]): Unit = {
@@ -335,14 +337,12 @@ object CrossRoadPrice {
 //        .option("url", "192.168.145.79:2181")
 //        .option("dbtable", "CROSSROADPRICE")
 //        .load()
+//      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
 
-      val queryDF: DataFrame = sqlContext.load("org.apache.phoenix.spark",Map("table"->"CROSSROADPRICE", "zkUrl"->"192.168.145.79:2181"))
-//      import org.apache.phoenix.spark._
-//      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE",Array("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
-//        Option(""),zkUrl = Option("192.168.145.79:2181"),new Configuration())
 
-//      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE", Seq("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
-//        Option(""), zkUrl = Option("192.168.145.79:2181"), new Configuration())
+
+      val queryDF = sqlContext.phoenixTableAsDataFrame("CROSSROADPRICE",Array("INTERSECTIONID", "ROADIDONE", "ROADIDTWO", "DAYHOUR", "TIME"),
+  Option(""),zkUrl = Option("192.168.145.79:2181"),new Configuration())
 
       val fromPhoenix: DataFrame = queryDF.select("*")
 

@@ -1,4 +1,3 @@
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
@@ -12,7 +11,7 @@ object CrossRoadPrice {
 
     val conf = new SparkConf()
     conf
-//      .setMaster("local[*]")
+      .setMaster("local[*]")
       .setAppName(this.getClass.getName)
 
     val sc = new SparkContext(conf)
@@ -400,13 +399,13 @@ object CrossRoadPrice {
 case class RoadPriceBean(var intersectionId: Int, var roadIdOne: Int, var roadIdTwo: Int, var dataTime: Int, val timeDiff: Double) extends Serializable
 
 case class Lon[Row](
-                     roadIdTrackOneLon1: Double,
-                     roadIdTrackOneLat1: Double,
-                     roadIdTrackOneDEVtimestamp1: Double,
-                     roadIdTrackOneGPStimestamp1: Double,
-                     roadIdTrackOneSpeed1: Double,
-                     roadIdTrackTwoLon1: Double,
-                     roadIdTrackTwoLat1: Double,
-                     roadIdTrackTwoDEVtimestamp1: Double,
-                     roadIdTrackTwoGPStimestamp1: Double,
-                     roadIdTrackTwoSpeed1: Double) extends Serializable
+ roadIdTrackOneLon1: Double,
+ roadIdTrackOneLat1: Double,
+ roadIdTrackOneDEVtimestamp1: Double,
+ roadIdTrackOneGPStimestamp1: Double,
+ roadIdTrackOneSpeed1: Double,
+ roadIdTrackTwoLon1: Double,
+ roadIdTrackTwoLat1: Double,
+ roadIdTrackTwoDEVtimestamp1: Double,
+ roadIdTrackTwoGPStimestamp1: Double,
+ roadIdTrackTwoSpeed1: Double) extends Serializable
